@@ -1,10 +1,47 @@
 #include "display.h"
-#include "quty_board.h" //
-#include "display_macros.h" //
+#include "display_macros.h"
+#include "quty_board.h"
 #include <avr/io.h>
 
+// --- State Variables ---
+// These variables store what SHOULD be on the display.
+// The ISR will read from these.
+static uint8_t pattern_digit_1 = DISP_OFF;
+static uint8_t pattern_digit_2 = DISP_OFF;
+
+// This tells the ISR which digit to update next
+static uint8_t active_digit = 1;
+
+const uint8_t step_displays[] = {DISP_STEP_0, DISP_STEP_1, DISP_STEP_2, DISP_STEP_3};
+
+void display_show_step(uint8_t step) {
+    // Determine which digit the step corresponds to
+    if (step < 2) { // Step 0 or 1 is on Digit 1
+        pattern_digit_1 = step_displays[step];
+        pattern_digit_2 = DISP_OFF;
+    } else { // Step 2 or 3 is on Digit 2
+        pattern_digit_1 = DISP_OFF;
+        pattern_digit_2 = step_displays[step];
+    }
+}
+
+void display_off(void) {
+    pattern_digit_1 = DISP_OFF;
+    pattern_digit_2 = DISP_OFF;
+}
+
+void display_multiplex_update(void) {
+    if (active_digit == 1) {
+        display_update(pattern_digit_1);
+        active_digit = 2;
+    } else {
+        display_update(pattern_digit_2);
+        active_digit = 1;
+    }
+}
+
 /**
- * @brief Sends one byte of data to the 74HC595 shift register to control the segments.
+ * @brief Sends one byte of data to the 74HC595 shift register using the SPI peripheral.
  * @param segments An 8-bit value where each bit corresponds to a display segment.
  */
 void display_update(uint8_t segments)
@@ -15,57 +52,18 @@ void display_update(uint8_t segments)
     // Step 1: Prepare the shift register by pulling the latch LOW.
     DISP_LATCH_PORT.OUT &= ~DISP_LATCH_PIN;
 
-    // Step 2: Shift out all 8 bits.
-    for (uint8_t i = 0; i < 8; i++)
-    {
-        DISP_CLK_PORT.OUT &= ~DISP_CLK_PIN;
-        if (segments & 0x80)
-        {
-            DISP_MOSI_PORT.OUT |= DISP_MOSI_PIN;
-        }
-        else
-        {
-            DISP_MOSI_PORT.OUT &= ~DISP_MOSI_PIN;
-        }
-        DISP_CLK_PORT.OUT |= DISP_CLK_PIN;
-        segments <<= 1;
-    }
+    // Step 2: Write the data to the SPI Data Register.
+    // This action automatically triggers the hardware to send all 8 bits.
+    SPI0.DATA = segments;
 
-    // Step 3: Latch the new data to the display outputs by pulling the latch HIGH.
+    // Step 3: Wait for the hardware to finish sending the byte.
+    // We do this by waiting for the SPI Interrupt Flag (IF) to be set.
+    while (!(SPI0.INTFLAGS & SPI_IF_bm));
+    // (The flag is automatically cleared after we write to SPI0.DATA again later)
+
+    // Step 4: Latch the new data to the display outputs by pulling the latch HIGH.
     DISP_LATCH_PORT.OUT |= DISP_LATCH_PIN;
 
     // IMPORTANT: Return the pin to be an input for the button.
     DISP_LATCH_PORT.DIR &= ~DISP_LATCH_PIN;
-}
-
-// NOTE: The rest of the file (segment_patterns array and display_show_number)
-// remains exactly the same and is omitted here for brevity.
-// Do NOT delete it from your file.
-
-// This is a lookup table for the segment patterns of digits 0-9.
-// NOTE: This is not currently used by the Simon game logic but is here for completeness.
-const uint8_t segment_patterns[] = {
-    DISP_SEG_A & DISP_SEG_B & DISP_SEG_C & DISP_SEG_D & DISP_SEG_E & DISP_SEG_F, // 0
-    DISP_SEG_B & DISP_SEG_C,                                                   // 1
-    DISP_SEG_A & DISP_SEG_B & DISP_SEG_G & DISP_SEG_E & DISP_SEG_D,             // 2
-    DISP_SEG_A & DISP_SEG_B & DISP_SEG_G & DISP_SEG_C & DISP_SEG_D,             // 3
-    DISP_SEG_F & DISP_SEG_G & DISP_SEG_B & DISP_SEG_C,                         // 4
-    DISP_SEG_A & DISP_SEG_F & DISP_SEG_G & DISP_SEG_C & DISP_SEG_D,             // 5
-    DISP_SEG_A & DISP_SEG_F & DISP_SEG_E & DISP_SEG_D & DISP_SEG_C & DISP_SEG_G, // 6
-    DISP_SEG_A & DISP_SEG_B & DISP_SEG_C,                                     // 7
-    DISP_SEG_A & DISP_SEG_B & DISP_SEG_C & DISP_SEG_D & DISP_SEG_E & DISP_SEG_F & DISP_SEG_G, // 8
-    DISP_SEG_A & DISP_SEG_B & DISP_SEG_C & DISP_SEG_D & DISP_SEG_F & DISP_SEG_G  // 9
-};
-
-/**
- * @brief Displays a single digit number on the 7-segment display.
- * @param number The number to display (0-9).
- */
-void display_show_number(uint8_t number)
-{
-    // Check if the number is within the bounds of our lookup table
-    if (number < sizeof(segment_patterns))
-    {
-        display_update(segment_patterns[number]);
-    }
 }

@@ -31,6 +31,6 @@
 #define DISP_STEP_3 (DISP_SEG_B | DISP_SEG_C) // No LHS bit, so it's the right digit
 
 
-#define DISP_OFF 0b01111111 // All segments off, doesn't matter which digit
+#define DISP_OFF 0b00000000 // To turn segments off, we send all zeros.
 
-#endif  
+#endif

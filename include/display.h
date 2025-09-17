@@ -1,18 +1,17 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
+#include <stdint.h>
 
-#include <stdint.h> // Provides standard integer types like uint8_t
+// High-level function to set the display for a Simon step
+void display_show_step(uint8_t step);
 
-/**
- * @brief Sends a raw 8-bit pattern to the display's shift register.
- * @param segments An 8-bit value where each bit corresponds to a display segment.
- */
+// Turns the display completely off
+void display_off(void);
+
+// This function is now called ONLY by the timer ISR
+void display_multiplex_update(void);
+
+// This function is no longer called from main.c
 void display_update(uint8_t segments);
-
-/**
- * @brief Displays a number (0-9) by looking up its pattern. (No longer used in main)
- * @param number The number to display.
- */
-void display_show_number(uint8_t number);
 
 #endif

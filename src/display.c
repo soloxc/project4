@@ -1,6 +1,6 @@
 #include "display.h"
-#include "quty_board.h"
-#include "display_macros.h"
+#include "quty_board.h" //
+#include "display_macros.h" //
 #include <avr/io.h>
 
 /**
@@ -9,41 +9,38 @@
  */
 void display_update(uint8_t segments)
 {
-    // Step 1: Prepare the shift register to receive new data by pulling the latch LOW.
+    // Temporarily set the shared Latch/Button pin (PA1) as an output
+    DISP_LATCH_PORT.DIR |= DISP_LATCH_PIN;
+
+    // Step 1: Prepare the shift register by pulling the latch LOW.
     DISP_LATCH_PORT.OUT &= ~DISP_LATCH_PIN;
 
-    // Step 2: Shift out all 8 bits of the 'segments' byte, one by one.
-    // The loop runs 8 times, for each bit in the byte.
+    // Step 2: Shift out all 8 bits.
     for (uint8_t i = 0; i < 8; i++)
     {
-        // Set the clock pin LOW before changing the data pin to ensure clean data signals.
         DISP_CLK_PORT.OUT &= ~DISP_CLK_PIN;
-
-        // Check the most significant bit of our data.
-        // 0x80 is a mask (binary 10000000) that isolates the leftmost bit.
         if (segments & 0x80)
         {
-            // If the bit is 1, set the MOSI (data) pin HIGH.
             DISP_MOSI_PORT.OUT |= DISP_MOSI_PIN;
         }
         else
         {
-            // If the bit is 0, set the MOSI (data) pin LOW.
             DISP_MOSI_PORT.OUT &= ~DISP_MOSI_PIN;
         }
-
-        // Pulse the clock pin HIGH. This rising edge shifts the bit into the register.
         DISP_CLK_PORT.OUT |= DISP_CLK_PIN;
-
-        // Shift our data byte one position to the left. The next bit to send is now the leftmost one.
         segments <<= 1;
     }
 
     // Step 3: Latch the new data to the display outputs by pulling the latch HIGH.
-    // This makes the pattern stored in the shift register appear on the LEDs.
     DISP_LATCH_PORT.OUT |= DISP_LATCH_PIN;
+
+    // IMPORTANT: Return the pin to be an input for the button.
+    DISP_LATCH_PORT.DIR &= ~DISP_LATCH_PIN;
 }
 
+// NOTE: The rest of the file (segment_patterns array and display_show_number)
+// remains exactly the same and is omitted here for brevity.
+// Do NOT delete it from your file.
 
 // This is a lookup table for the segment patterns of digits 0-9.
 // NOTE: This is not currently used by the Simon game logic but is here for completeness.
